@@ -1,5 +1,5 @@
 # matchstack
-A stupid python arson wrapper to debug dta node numbers
+A stupid python arsonc wrapper to debug dta node numbers
 
 ![pic2](/media/pic2.png)
 
