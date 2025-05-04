@@ -1,0 +1,2 @@
+cd ~/Documents/GitHub/matchstack
+python3 ./map_debug.py --map ./band_r_wii.map --log ~/Library/Application\ Support/Dolphin/Logs/dolphin.log --out ./out.log --dta-root ~/Documents/Github/rock-band-3-deluxe/_ark --stack-tool ./stack_trace_read.py --dta-tool ./matchstack.py
