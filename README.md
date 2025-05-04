@@ -29,3 +29,7 @@ The processed output of the dta is printed to console with syntax highlighting a
 
 # Disclaimer
 * Disclaimer, this script was written by AI, this readme was not.
+
+# Credits
+
+* TheNathannator - for Arson, and stack_trace_read.py
