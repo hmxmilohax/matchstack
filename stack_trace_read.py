@@ -6,7 +6,7 @@ import sys
 
 map_symbol_pattern = re.compile(r"\s*[0-9A-Fa-f]{8}\s+[0-9A-Fa-f]{6}\s+([0-9A-Fa-f]{8})\s+[0-9A-Fa-f]{8}\s+[0-9]+\s+(\S*?)\s+.*")
 log_msg_pattern = re.compile(r"\d+:\d+:\d+ [^:]+:\d+ N\[OSREPORT\]: (.*)")
-log_addr_pattern = re.compile(r"\s*([0-9A-Fa-f]{8})")
+log_addr_pattern = re.compile(r"\s*([0-9A-Fa-f]+)")
 
 map_path = sys.argv[1]
 log_path = sys.argv[2]
@@ -56,7 +56,7 @@ with open(log_path) as log_file:
         if not stack_trace_found:
             if message == "Stack Trace (map file unavailable)":
                 stack_trace_found = True
-                #print("Found stack trace, reading addresses...")
+                #rint("Found stack trace, reading addresses...")
             continue
 
         # Stack trace found, read addresses until no more are found
@@ -65,11 +65,16 @@ with open(log_path) as log_file:
             #print("Reached end of stack trace.")
             break
 
-        address = match.group(1)
+        address = int(match.group(1), base=16)
 
         # Since the address in the stack trace is not pre-adjusted to the function's start,
         # we need to find the closest symbol address that's less than or equal to the stack address
-        symbol_index = bisect.bisect_left(map_symbols, int(address, base=16), key=lambda v: v[0]) - 1
+        symbol_index = bisect.bisect_right(map_symbols, address, key=lambda v: v[0]) - 1
+        if symbol_index < 0:
+            print(f"Invalid stack address {address}")
+            stack_trace_symbols.append((address, "<invalid>", None))
+            continue
+
         address, symbol = map_symbols[symbol_index]
 
         # Try to demangle using cwdemangle, if available
@@ -92,4 +97,4 @@ with open(output_path, "w") as output_file:
 
         print(line, file=output_file, end="\n")
 
-print("Finished.")
+#print("Finished.")
