@@ -7,6 +7,8 @@ import sys
 map_symbol_pattern = re.compile(r"\s*[0-9A-Fa-f]{8}\s+[0-9A-Fa-f]{6}\s+([0-9A-Fa-f]{8})\s+[0-9A-Fa-f]{8}\s+[0-9]+\s+(\S*?)\s+.*")
 log_msg_pattern = re.compile(r"\d+:\d+:\d+ [^:]+:\d+ N\[OSREPORT\]: (.*)")
 log_addr_pattern = re.compile(r"\s*([0-9A-Fa-f]+)")
+# Match table-style rows: frame: back-chain   LR Save
+table_row_pattern   = re.compile(r"\s*(?:0x)?[0-9A-Fa-f]+:\s*(?:0x)?[0-9A-Fa-f]+\s*(?:0x)?([0-9A-Fa-f]+)")
 
 map_path = sys.argv[1]
 log_path = sys.argv[2]
@@ -41,6 +43,8 @@ with open(map_path) as map_file:
         map_symbols.append((address, symbol))
 
 map_symbols = sorted(map_symbols, key=lambda v: v[0])
+# Precompute list of addresses for bisect
+map_addrs   = [addr for addr, _ in map_symbols]
 
 print(f"Read {len(map_symbols)} symbols.")
 
@@ -48,34 +52,46 @@ print(f"Read {len(map_symbols)} symbols.")
 stack_trace_symbols: list[str] = []
 with open(log_path) as log_file:
     stack_trace_found = False
+    table_trace_found = False
     for line in log_file.readlines():
         # Strip log message header
         match = log_msg_pattern.match(line)
         message = match.group(1) if match else line
 
-        if not stack_trace_found:
+        # detect start of old‐style or table‐style trace
+        if not stack_trace_found and not table_trace_found:
             if message == "Stack Trace (map file unavailable)":
                 stack_trace_found = True
                 #rint("Found stack trace, reading addresses...")
+                continue
+            if message.startswith("Address:") and "LR Save" in message:
+                table_trace_found = True
+                continue
             continue
 
-        # Stack trace found, read addresses until no more are found
-        match = log_addr_pattern.match(message)
-        if not match:
-            #print("Reached end of stack trace.")
-            break
+        # parse LR Save from table‐style output
+        if table_trace_found:
+            m = table_row_pattern.match(message)
+            if not m:
+                #print("Reached end of stack trace.")
+                break
+            address = int(m.group(1), base=16)
+        else:
+            # old‐style single‐column addresses
+            m = log_addr_pattern.match(message)
+            if not m:
+                #print("Reached end of stack trace.")
+                break
+            address = int(m.group(1), base=16)
 
-        address = int(match.group(1), base=16)
-
-        # Since the address in the stack trace is not pre-adjusted to the function's start,
-        # we need to find the closest symbol address that's less than or equal to the stack address
-        symbol_index = bisect.bisect_right(map_symbols, address, key=lambda v: v[0]) - 1
+        # find the symbol <= address
+        symbol_index = bisect.bisect_right(map_addrs, address) - 1
         if symbol_index < 0:
             print(f"Invalid stack address {address}")
             stack_trace_symbols.append((address, "<invalid>", None))
             continue
 
-        address, symbol = map_symbols[symbol_index]
+        base, symbol = map_symbols[symbol_index]
 
         # Try to demangle using cwdemangle, if available
         try:
@@ -84,7 +100,7 @@ with open(log_path) as log_file:
             demangled = None
             pass
 
-        stack_trace_symbols.append((address, symbol, demangled))
+        stack_trace_symbols.append((base, symbol, demangled))
 
 #print("Writing converted stack trace...")
 with open(output_path, "w") as output_file:
