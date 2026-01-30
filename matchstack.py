@@ -471,12 +471,16 @@ def main():
             arsonc_path,
             "compile",
             temp_input_path,
-            "--encryption", "none",
+            "--output-format", "milo",
             "--output-encoding", "utf8"
         ]
         result_compile = subprocess.run(compile_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         if result_compile.returncode != 0:
             print("Error: Compile command failed.", file=sys.stderr)
+            if result_compile.stdout:
+                print("--- stdout ---\n" + result_compile.stdout, file=sys.stderr)
+            if result_compile.stderr:
+                print("--- stderr ---\n" + result_compile.stderr, file=sys.stderr)
             sys.exit(result_compile.returncode)
 
         dtb_file = os.path.splitext(base_name)[0] + ".dtb"
@@ -492,11 +496,16 @@ def main():
             arsonc_path,
             "decompile",
             "-l",
+            "--output-encoding", "utf8",
             "-i", dtb_path
         ]
         result_decompile = subprocess.run(decompile_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         if result_decompile.returncode != 0:
             print("Error: Decompile command failed.", file=sys.stderr)
+            if result_decompile.stdout:
+                print("--- stdout ---\n" + result_decompile.stdout, file=sys.stderr)
+            if result_decompile.stderr:
+                print("--- stderr ---\n" + result_decompile.stderr, file=sys.stderr)
             sys.exit(result_decompile.returncode)
 
         final_dta_path = os.path.join(temp_dir, base_name)
