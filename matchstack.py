@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 import argparse
 import os
 import re
@@ -347,10 +347,10 @@ def process_line(line):
     Processes a single line by searching for a block comment that contains an ID.
     Returns a tuple (extracted_id, cleaned_line).
     """
-    match = re.search(r'/\*.*?Line:\s*(\d+).*?\*/', line)
+    match = re.search(r'/\*.*?ID:\s*(\d+).*?\*/', line)
     if match:
         id_int = int(match.group(1))
-        cleaned_line = re.sub(r'/\*.*?Line:\s*\d+.*?\*/', '', line)
+        cleaned_line = re.sub(r'/\*.*?ID:\s*\d+.*?\*/', '', line)
     else:
         id_int = None
         cleaned_line = line
@@ -359,7 +359,7 @@ def process_line(line):
     return id_int, cleaned_line.rstrip("\n")
 
 def pretty_print_snippet(lines, target_index, start_idx, end_idx, dta_filename, target_id):
-    header = f"Snippet from {dta_filename} (target line: {target_id})"
+    header = f"Snippet from {dta_filename} (target ID: {target_id})"
     border = "+" + "-" * (len(header) + 4) + "+"
     print(COLORS["blue"] + border + COLORS["reset"])
     print(f"|  {COLORS['blue']}{header}{COLORS['reset']}  |")
@@ -472,8 +472,7 @@ def main():
             "compile",
             temp_input_path,
             "--output-format", "milo",
-            "--output-encoding", "utf8",
-            "--output-encryption", "none"
+            "--output-encoding", "utf8"
         ]
         result_compile = subprocess.run(compile_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         if result_compile.returncode != 0:
@@ -499,7 +498,7 @@ def main():
             arsonc_path,
             "decompile",
             "--output-encoding", "utf8",
-            "--output-line-numbers",
+            "--output-array-ids",
             dtb_path,
             dta_path
         ]
@@ -520,7 +519,7 @@ def main():
         with open(final_dta_path, 'r') as f:
             lines = f.readlines()
 
-        target_pattern = re.compile(r'Line:\s*' + re.escape(str(adjusted_target)) + r'\s*\*/')
+        target_pattern = re.compile(r'ID:\s*' + re.escape(str(adjusted_target)) + r'\s*\*/')
         target_index = None
         for idx, line in enumerate(lines):
             if target_pattern.search(line):
