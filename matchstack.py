@@ -344,19 +344,27 @@ def highlight_line(line):
 
 def process_line(line):
     """
-    Processes a single line by searching for a block comment that contains an ID.
-    Returns a tuple (extracted_id, cleaned_line).
+    Processes a single line by extracting ID and Line metadata from
+    block comments.
+
+    Returns:
+        (extracted_id, extracted_line, cleaned_line)
     """
-    match = re.search(r'/\*.*?ID:\s*(\d+).*?\*/', line)
-    if match:
-        id_int = int(match.group(1))
-        cleaned_line = re.sub(r'/\*.*?ID:\s*\d+.*?\*/', '', line)
-    else:
-        id_int = None
-        cleaned_line = line
+    id_match = re.search(r'/\*.*?ID:\s*(\d+).*?\*/', line)
+    line_match = re.search(r'/\*.*?Line:\s*(\d+).*?\*/', line)
+
+    id_int = int(id_match.group(1)) if id_match else None
+    line_int = int(line_match.group(1)) if line_match else None
+
+    cleaned_line = re.sub(
+        r'/\*.*?(?:ID|Line):\s*\d+.*?\*/',
+        '',
+        line
+    )
+
     # Remove extra whitespace after a starting brace.
     cleaned_line = re.sub(r'\{\s+', '{', cleaned_line)
-    return id_int, cleaned_line.rstrip("\n")
+    return id_int, line_int, cleaned_line.rstrip("\n")
 
 def pretty_print_snippet(lines, target_index, start_idx, end_idx, dta_filename, target_id):
     header = f"Snippet from {dta_filename} (target ID: {target_id})"
@@ -370,14 +378,14 @@ def pretty_print_snippet(lines, target_index, start_idx, end_idx, dta_filename, 
 
     while i < end_idx:
         original_line = lines[i]
-        extracted_id, cleaned_line = process_line(original_line)
+        extracted_id, extracted_line, cleaned_line = process_line(original_line)
         line_is_target = (i == target_index)
 
         # Check if the line is only an open brace.
         if cleaned_line.strip() == "{":
             if (i + 1) < end_idx:
                 next_line = lines[i + 1]
-                extracted_id2, cleaned_line2 = process_line(next_line)
+                extracted_id2, extracted_line2, cleaned_line2 = process_line(next_line)
                 next_line_is_target = ((i + 1) == target_index)
 
                 # "ID-only" means there's an extracted ID on that line, but nothing else.
@@ -403,7 +411,7 @@ def pretty_print_snippet(lines, target_index, start_idx, end_idx, dta_filename, 
                     # Now check if the following line (if any) is a single token (e.g. "if").
                     if i < end_idx:
                         extra_original = lines[i]
-                        extra_extracted, extra_cleaned = process_line(extra_original)
+                        extra_extracted, extra_line, extra_cleaned = process_line(extra_original)
                         # Consider it "single token" if there's no ID and exactly one word.
                         if extra_extracted is None and extra_cleaned.strip() != "":
                             tokens = extra_cleaned.strip().split()
@@ -441,6 +449,14 @@ def pretty_print_snippet(lines, target_index, start_idx, end_idx, dta_filename, 
         print(line)
 
     print(COLORS["blue"] + border + COLORS["reset"])
+
+def open_in_sublime(path, line):
+    path = os.path.abspath(path)
+
+    subprocess.Popen([
+        "subl",
+        f"{path}:{line}"
+    ])
 
 def main():
     parser = argparse.ArgumentParser(
@@ -499,6 +515,7 @@ def main():
             "decompile",
             "--output-encoding", "utf8",
             "--output-array-ids",
+            "--output-line-numbers",
             dtb_path,
             dta_path
         ]
@@ -519,16 +536,20 @@ def main():
         with open(final_dta_path, 'r') as f:
             lines = f.readlines()
 
-        target_pattern = re.compile(r'ID:\s*' + re.escape(str(adjusted_target)) + r'\s*\*/')
         target_index = None
+        target_source_line = None
         for idx, line in enumerate(lines):
-            if target_pattern.search(line):
+            extracted_id, extracted_line, _ = process_line(line)
+            if extracted_id == adjusted_target:
                 target_index = idx
+                target_source_line = extracted_line
                 break
 
         if target_index is None:
             print(f"Pattern for adjusted target ID '{adjusted_target}' not found in the final .dta file.")
         else:
+            #if target_source_line is not None:
+            #    open_in_sublime(input_path, target_source_line)
             start_idx = max(0, target_index - 5)
             end_idx = min(len(lines), target_index + 1 + 20)
             pretty_print_snippet(lines, target_index, start_idx, end_idx, base_name, args.target_id)
